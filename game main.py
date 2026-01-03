@@ -8,6 +8,7 @@ from game.enemy import Enemy
 from game.level import Level
 from game.items import MetaProgression
 from game.ui import UI
+from game.vfx import VFXManager
 # Save folder and files
 SAVE_DIR = os.path.join(os.getcwd(), 'saves')
 os.makedirs(SAVE_DIR, exist_ok=True)
@@ -51,6 +52,8 @@ class Game:
         
         # Particles and effects
         self.particles = []
+        # Visual effects manager
+        self.vfx = VFXManager()
         
         # Load settings from file
         try:
@@ -268,7 +271,7 @@ class Game:
                     elif event.key == pygame.K_o:
                         self.state = 'options'           
                 
-                if self.state == 'playing':
+                elif self.state == 'playing':
                     if event.key == pygame.K_SPACE:
                         # Dodge based on movement direction
                         keys = pygame.key.get_pressed()
@@ -287,6 +290,9 @@ class Game:
                             dx = 1  # Default forward
                         
                         self.player.dodge((dx, dy))
+                        # small dodge VFX
+                        if self.vfx:
+                            self.vfx.create_impact(self.player.x, self.player.y, color=(100,200,255), size=12)
                     
                     elif event.key == pygame.K_TAB:
                         self.ui.toggle_stats()
@@ -354,7 +360,10 @@ class Game:
                         # Perform the attack and process hits
                         attack_angle = self.player.attack((world_x, world_y))
                         if attack_angle is not None:
-                            self._process_attack(attack_angle)
+                                # Create slash VFX for player's attack
+                                if self.vfx:
+                                    self.vfx.create_slash(self.player.x, self.player.y, attack_angle, color=YELLOW, size=64)
+                                self._process_attack(attack_angle)
 
     def _process_attack(self, angle):
         """Process player attack"""
@@ -369,6 +378,8 @@ class Game:
                 if abs(angle_diff) < ATTACK_CONE_ANGLE:  # Hit cone
                     damage = self.player.damage
                     self.player.damage_dealt += damage
+                    if self.vfx:
+                        self.vfx.create_impact(enemy.x, enemy.y, color=enemy.color, size=24)
                     
                     if enemy.take_damage(damage):
                         # Enemy killed
@@ -434,24 +445,45 @@ class Game:
             
             # Update enemies
             for enemy in self.level.enemies:
-                action = enemy.update(self.player, self.level.enemies)
-                
+                action = enemy.update(self.player, self.level.enemies, self.vfx)
+
                 # Enemy attacks
                 if action:
-                    dist = math.sqrt((enemy.x - self.player.x)**2 + (enemy.y - self.player.y)**2)
-                    if dist <= enemy.attack_range + self.player.size + enemy.size:
-                        result = self.player.take_damage(enemy.damage, (enemy.x, enemy.y))
-                        
-                        if result == 'perfect_dodge':
-                            self.player.perfect_dodges += 1
-                            self.ui.add_message('PERFECT DODGE!')
-                        elif result == 'perfect_block':
-                            self.player.perfect_blocks += 1
-                            self.ui.add_message('PERFECT BLOCK!')
-                        elif result == 'hit':
-                            self.ui.add_message('Hit!')
-                        elif result == 'block':
-                            self.ui.add_message('Blocked!')
+                    # If enemy locked a fixed attack target (non-boss), resolve attack at that point
+                    if getattr(enemy, 'attack_target_fixed', False) and getattr(enemy, 'attack_target', None):
+                        tx, ty = enemy.attack_target
+                        # Show impact at the fixed target location
+                        if self.vfx:
+                            self.vfx.create_impact(tx, ty, color=enemy.color, size=24)
+
+                        # Player is hit only if within small radius of the target
+                        hit_dist = math.sqrt((self.player.x - tx)**2 + (self.player.y - ty)**2)
+                        hit_radius = self.player.size + enemy.size + 10
+                        if hit_dist <= hit_radius:
+                            result = self.player.take_damage(enemy.damage, (tx, ty))
+                        else:
+                            result = None
+                    else:
+                        # Dynamic attack (bosses): resolve against player's current position
+                        dist = math.sqrt((enemy.x - self.player.x)**2 + (enemy.y - self.player.y)**2)
+                        if dist <= enemy.attack_range + self.player.size + enemy.size:
+                            # Show impact at player's current position
+                            if self.vfx:
+                                self.vfx.create_impact(self.player.x, self.player.y, color=enemy.color, size=24)
+                            result = self.player.take_damage(enemy.damage, (enemy.x, enemy.y))
+                        else:
+                            result = None
+
+                    if result == 'perfect_dodge':
+                        self.player.perfect_dodges += 1
+                        self.ui.add_message('PERFECT DODGE!')
+                    elif result == 'perfect_block':
+                        self.player.perfect_blocks += 1
+                        self.ui.add_message('PERFECT BLOCK!')
+                    elif result == 'hit':
+                        self.ui.add_message('Hit!')
+                    elif result == 'block':
+                        self.ui.add_message('Blocked!')
             
             # Update camera
             self.camera_offset[0] = self.player.x - WINDOW_WIDTH // 2
@@ -474,13 +506,15 @@ class Game:
                 particle['y'] += particle['vy']
                 particle['life'] -= 1
             self.particles = [p for p in self.particles if p['life'] > 0]
+            # Update VFX
+            if self.vfx:
+                self.vfx.update()
             
             # Update UI
             self.ui.update()
             
             # Check for level completion
-            if self.level.cleared:
-                if len(self.level.items) == 0:
+            if self.level.cleared and self.level.check_portal_enter(self.player):
                     self.next_level()
             
             # Check for game over
@@ -508,12 +542,24 @@ class Game:
                 size = max(1, particle['life'] // 5)
                 pygame.draw.circle(self.screen, particle['color'], (int(px), int(py)), size)
             
+            # Draw wind-up VFX behind characters
+            if self.vfx:
+                for effect in list(self.vfx.windup_effects):
+                    effect.draw(self.screen, self.camera_offset)
+
             # Draw enemies
             for enemy in self.level.enemies:
                 enemy.draw(self.screen, self.camera_offset, self.show_hitboxes)
             
             # Draw player
             self.player.draw(self.screen, self.camera_offset, self.show_hitboxes)
+
+            # Draw slashes and impacts on top
+            if self.vfx:
+                for effect in list(self.vfx.slash_effects):
+                    effect.draw(self.screen, self.camera_offset)
+                for effect in list(self.vfx.impact_effects):
+                    effect.draw(self.screen, self.camera_offset)
 
 
             # Draw attack range if hitboxes enabled

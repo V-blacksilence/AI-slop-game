@@ -18,6 +18,8 @@ PURPLE = (111, 66, 193)
 GRAY = (108, 117, 125)
 DARK_GRAY = (52, 58, 64)
 LIGHT_GRAY = (173, 181, 189)
+CYAN = (23, 162, 184)
+PINK = (232, 62, 140)
 
 # Player settings
 PLAYER_SPEED = 5
@@ -37,6 +39,111 @@ PERFECT_DODGE_WINDOW = 8  # frames before hit
 PERFECT_BLOCK_WINDOW = 5  # frames of block start
 ATTACK_COOLDOWN = 30  # frames
 ATTACK_RANGE = 100
+
+
+# Weapon configurations
+WEAPONS = {
+    'fists': {
+        'name': 'Fists',
+        'damage': 20,
+        'range': 100,
+        'cooldown': 30,
+        'speed_modifier': 1.0,
+        'can_counter': False,
+        'can_parry': False,
+        'projectile': False,
+        'description': 'Basic melee attack'
+    },
+    'bow': {
+        'name': 'Bow',
+        'damage': 15,
+        'range': 400,
+        'cooldown': 45,
+        'speed_modifier': 1.0,
+        'can_counter': False,
+        'can_parry': False,
+        'projectile': True,
+        'projectile_speed': 12,
+        'description': 'Ranged weapon, shoots arrows'
+    },
+    'spear': {
+        'name': 'Spear',
+        'damage': 25,
+        'range': 180,
+        'cooldown': 35,
+        'speed_modifier': 0.95,
+        'can_counter': False,
+        'can_parry': False,
+        'projectile': False,
+        'description': 'Long reach melee weapon'
+    },
+    'katana': {
+        'name': 'Katana',
+        'damage': 30,
+        'range': 120,
+        'cooldown': 25,
+        'speed_modifier': 1.1,
+        'can_counter': True,
+        'can_parry': True,
+        'counter_window': 10,  # frames
+        'parry_multiplier': 2.0,
+        'projectile': False,
+        'description': 'Fast weapon with counter & parry'
+    },
+    'greatsword': {
+        'name': 'Greatsword',
+        'damage': 50,
+        'range': 140,
+        'cooldown': 60,
+        'speed_modifier': 0.85,
+        'can_counter': False,
+        'can_parry': False,
+        'projectile': False,
+        'aoe': True,
+        'aoe_range': 80,
+        'description': 'Heavy damage, slow attacks, AOE'
+    }
+}
+
+# Weapon unlock bosses
+WEAPON_UNLOCK_LEVELS = {
+    3: 'bow',
+    6: 'spear',
+    9: 'katana',
+    12: 'greatsword'
+}
+
+# Shop items
+SHOP_ITEMS = {
+    'damage_reduction': {
+        'name': 'Armor Plate',
+        'description': 'Reduce damage taken by 5%',
+        'cost': 15,
+        'stack': True,
+        'effect': 0.05  # 5% reduction per purchase
+    },
+    'range_increase': {
+        'name': 'Range Extender',
+        'description': 'Increase attack range by 15',
+        'cost': 20,
+        'stack': True,
+        'effect': 15  # +15 range
+    },
+    'shield_on_kills': {
+        'name': 'Kill Shield',
+        'description': 'Shield activates every 3 kills',
+        'cost': 25,
+        'stack': True,
+        'effect': 30  # Shield HP per stack
+    },
+    'attack_prediction': {
+        'name': 'Danger Sense',
+        'description': 'See enemy attack warnings earlier',
+        'cost': 30,
+        'stack': True,
+        'effect': 10  # +10 frames of warning
+    }
+}
 
 # Enemy settings
 ENEMY_TYPES = {
@@ -75,6 +182,15 @@ ROOM_MAX_SIZE = 800
 ENEMIES_PER_LEVEL = 8
 BOSS_LEVEL_INTERVAL = 3
 
+# Progressive difficulty scaling
+DIFFICULTY_SCALING = {
+    'enemy_health': 1.15,  # +15% per level
+    'enemy_damage': 1.1,   # +10% per level
+    'enemy_speed': 1.05,   # +5% per level
+    'enemy_count': 1,      # +1 enemy per level
+    'soul_bonus': 1.2      # +20% souls per level
+}
+
 # Item drop rates
 DROP_RATES = {
     'health_potion': 0.3,
@@ -96,3 +212,7 @@ PARTICLE_COUNT = 10
 ITEM_COLLECTION_RANGE = 50
 ATTACK_CONE_ANGLE = 0.5  
 PRATICLE_LIFETIME = 30  
+
+# Save systems
+MAX_SAVE_SLOTS = 6
+SAVE_DIR = 'save/'

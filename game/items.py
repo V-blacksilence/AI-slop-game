@@ -1,3 +1,4 @@
+import os
 import pygame
 import random
 from game.constants import *
@@ -70,6 +71,8 @@ class MetaProgression:
             self.upgrades[upgrade_name] += 1
             return True
         return False
+    
+
     def reset(self):
         """Reset all meta progression data"""
         self.souls = 0
@@ -80,7 +83,9 @@ class MetaProgression:
             'speed': 0
         }
         self.total_runs = 0
-        self.best_level = 0    
+        self.best_level = 0   
+
+
     def apply_to_player(self, player):
         """Apply meta upgrades to player"""
         if self.upgrades['max_health'] > 0:
@@ -104,7 +109,11 @@ class MetaProgression:
     def save(self, filename='meta_save.txt'):
         """Save meta progression to file"""
         try:
-            with open(filename, 'w') as f:
+            # Default to saves directory so Game's SAVE_PATHS logic matches
+            save_path = filename or os.path.join('saves', 'meta_save.txt')
+            if filename == 'meta_save.txt':
+                save_path = os.path.join('saves', 'meta_save.txt')
+            with open(save_path, 'w') as f:
                 f.write(f"{self.souls}\n")
                 f.write(f"{self.total_runs}\n")
                 f.write(f"{self.best_level}\n")
@@ -116,7 +125,8 @@ class MetaProgression:
     def load(self):
         """Load meta progression from file"""
         try:
-            with open('meta_save.txt', 'r') as f:
+            load_path = os.path.join('saves', 'meta_save.txt')
+            with open(load_path, 'r') as f:
                 self.souls = int(f.readline().strip())
                 self.total_runs = int(f.readline().strip())
                 self.best_level = int(f.readline().strip())
@@ -129,3 +139,4 @@ class MetaProgression:
         except Exception as e:
             print(f"Error loading meta progress: {e}")
             print("Using default values")
+            pass

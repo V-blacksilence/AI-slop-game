@@ -1,7 +1,7 @@
 import pygame
 import math
 from game.constants import *
-
+from game.weapons import WeaponSystem
 class Player:
     def __init__(self, x, y):
         self.x = x
@@ -16,6 +16,21 @@ class Player:
         self.max_stamina = PLAYER_MAX_STAMINA
         self.stamina = self.max_stamina
         self.damage = PLAYER_DAMAGE
+        self.souls = 0
+
+        # Weapon system
+        self.weapon_system = WeaponSystem()
+
+        # Shop upgrades
+        self.damage_reduction = 0
+        self.range_bonus = 0
+        self.shield_per_kills = 0
+        self.prediction_bonus = 0
+
+        # Shield systems
+        self.shield = 0
+        self.kills_since_shield = 0
+        self.shield_active = False
         
         # Combat state
         self.is_dodging = False
@@ -52,6 +67,13 @@ class Player:
         # Attack cooldown
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
+        
+        # Update weapon system
+        self.weapon_system.update_counter()
+
+        # Get speed with weapon modifier
+        weapon_stats = self.weapon_system.get_weapon_stats()
+        current_speed = self.speed * weapon_stats['speed_modifier']
         
         # Dodge mechanics
         if self.is_dodging:
@@ -103,7 +125,12 @@ class Player:
         else:
             self.is_blocking = False
             self.block_timer = 0
-    
+
+        # Counter stance
+        if keys[pygame.K_c]:
+            self.weapon_system.activate_counter()
+
+        
     def dodge(self, direction):
         if self.stamina >= DODGE_COST and not self.is_dodging:
             self.is_dodging = True
@@ -119,35 +146,96 @@ class Player:
     
     def attack(self, mouse_pos):
         if self.attack_cooldown <= 0:
-            self.attack_cooldown = ATTACK_COOLDOWN
+            weapon_stats = self.weapon_system.get_weapon_stats()
+            self.attack_cooldown = weapon_stats['cooldown']
+            
             # Calculate attack direction
             dx = mouse_pos[0] - self.x
             dy = mouse_pos[1] - self.y
             angle = math.atan2(dy, dx)
+            
+            # Handle projectile weapons
+            if weapon_stats.get('projectile', False):
+                self.weapon_system.create_projectile(self.x, self.y, angle)
             return angle
         return None
+
+    def get_attack_range(self):
+        weapon_stats = self.weapon_system.get_weapon_stats()
+        return weapon_stats['range'] + self.range_bonus
     
+    def get_attack_damage(self):
+        weapon_stats = self.weapon_system.get_weapon_stats()
+        base_damage = weapon_stats['damage'] + self.damage
+        return base_damage
+    
+
     def take_damage(self, damage, enemy_pos):
+        # Check shield first
+        if self.shield_active and self.shield > 0:
+            self.shield -= damage
+            if self.shield <= 0:
+                overflow = abs(self.shield)
+                self.shield = 0
+                self.shield_active = False
+                # Apply overflow damage
+                if overflow > 0:
+                    return self._apply_damage_to_health(overflow, enemy_pos)
+            return 'shield'
+        
+        return self._apply_damage_to_health(damage, enemy_pos)
+    
+    def _apply_damage_to_health(self, damage, enemy_pos):
         if self.invulnerable:
-            # Check if this is within perfect window
-            frames_into_dodge = DODGE_DURATION - self.dodge_timer
-            if frames_into_dodge <= PERFECT_DODGE_WINDOW:
-                return 'perfect_dodge'
-            return 'dodged'  # Normal dodge, not perfect
-            
+            return 'perfect_dodge'
+        
+        # Check for counter (katana)
+        if self.weapon_system.is_counter_active():
+            return 'counter'
+        
         if self.is_blocking:
             if self.block_timer <= PERFECT_BLOCK_WINDOW:
                 self.perfect_blocks += 1
+                # Parry check (katana)
+                if self.weapon_system.can_parry():
+                    return 'parry'
                 return 'perfect_block'
             else:
-                damage *= (1 - BLOCK_DAMAGE_REDUCTION)
+                # Apply damage reduction from shop + block
+                total_reduction = BLOCK_DAMAGE_REDUCTION + self.damage_reduction
+                total_reduction = min(0.9, total_reduction)  # Cap at 90%
+                damage *= (1 - total_reduction)
                 self.health -= damage
                 self.damage_taken += damage
                 return 'block'
         
+        # Apply damage reduction from shop
+        if self.damage_reduction > 0:
+            damage *= (1 - min(0.9, self.damage_reduction))
+        
         self.health -= damage
         self.damage_taken += damage
         return 'hit'
+    
+    def on_kill(self):
+        """Called when player kills an enemy"""
+        self.kills += 1
+        self.kills_since_shield += 1
+        
+        # Check for shield activation
+        if self.shield_per_kills > 0 and self.kills_since_shield >= 3:
+            self.kills_since_shield = 0
+            # Shield ready but not active yet
+            return 'shield_ready'
+        return None
+    
+    def activate_shield(self):
+        """Activate the earned shield"""
+        if self.shield_per_kills > 0:
+            self.shield = self.shield_per_kills
+            self.shield_active = True
+            return True
+        return False
     
     def heal(self, amount):
         self.health = min(self.max_health, self.health + amount)
@@ -166,65 +254,46 @@ class Player:
     
     def get_rect(self):
         return pygame.Rect(self.x - self.size//2, self.y - self.size//2, self.size, self.size)
+    
+    def get_hitbox(self):
+        return pygame.Rect(self.x - self.size//2, self.y - self.size//2, self.size, self.size)
 
-    def draw_arrow(self, screen, camera_offset):
-        """Draw aiming arrow pointing to mouse"""
+    def draw(self, screen, camera_offset, show_hitbox=True):
         draw_x = self.x - camera_offset[0]
         draw_y = self.y - camera_offset[1]
-        
-        arrow_length = 60
-        arrow_width = 8
-        arrow_head_size = 15
-        
-        # Calculate arrow end point
-        end_x = draw_x + math.cos(self.aim_angle) * arrow_length
-        end_y = draw_y + math.sin(self.aim_angle) * arrow_length
-        
-        # Draw arrow shaft
-        pygame.draw.line(screen, YELLOW, (draw_x, draw_y), (end_x, end_y), arrow_width)
-        
-        # Draw arrow head (triangle)
-        arrow_angle_offset = math.pi / 6  # 30 degrees
-        
-        left_x = end_x + math.cos(self.aim_angle + math.pi - arrow_angle_offset) * arrow_head_size
-        left_y = end_y + math.sin(self.aim_angle + math.pi - arrow_angle_offset) * arrow_head_size
-        
-        right_x = end_x + math.cos(self.aim_angle + math.pi + arrow_angle_offset) * arrow_head_size
-        right_y = end_y + math.sin(self.aim_angle + math.pi + arrow_angle_offset) * arrow_head_size
-        
-        pygame.draw.polygon(screen, YELLOW, [(end_x, end_y), (left_x, left_y), (right_x, right_y)])
-    
-    
-    def draw(self, screen, camera_offset, show_hitbox=False):
-        draw_x = self.x - camera_offset[0]
-        draw_y = self.y - camera_offset[1]
-        
+        # Draw hitbox
+        if show_hitbox:
+            hitbox = self.get_hitbox()
+            hitbox_screen = pygame.Rect(
+                hitbox.x - camera_offset[0],
+                hitbox.y - camera_offset[1],
+                hitbox.width,
+                hitbox.height
+            )
+            pygame.draw.rect(screen, CYAN, hitbox_screen, 2)
         # Draw player
         color = BLUE
         if self.is_dodging:
             color = YELLOW
         elif self.is_blocking:
             color = LIGHT_GRAY
+        elif self.weapon_system.is_counter_active():
+            color = PINK
         
         pygame.draw.circle(screen, color, (int(draw_x), int(draw_y)), self.size//2)
         
         # Draw direction indicator
         if not self.is_dodging:
             pygame.draw.circle(screen, WHITE, (int(draw_x), int(draw_y)), self.size//2, 2)
+        #Draw shield indicator
+        if self.shield_active and self.shield >0:
+            pygame.draw.circle(screen, CYAN, (int(draw_x), int(draw_y)), self.size//2 + 5, 3)
 
-        # Draw aiming arrow
-        self.draw_arrow(screen, camera_offset)
+        # Draw weapon indicator
+        weapon_name = self.weapon_system.current_weapon
+        if weapon_name != 'fists':
+            font = pygame.font.Font(None, 18)
+            text = font.render(weapon_name[:3].upper(), True, YELLOW)
+            screen.blit(text, (draw_x - 10, draw_y + self.size//2 + 5))
         
-        # Draw hitbox
-        if self.show_hitbox:
-            # Collision circle
-            pygame.draw.circle(screen, (0, 255, 0), (int(draw_x), int(draw_y)), self.size//2, 2)
-            
-            # Draw rect hitbox
-            rect = self.get_rect()
-            rect_x = rect.x - camera_offset[0]
-            rect_y = rect.y - camera_offset[1]
-            pygame.draw.rect(screen, (0, 255, 0), (rect_x, rect_y, rect.width, rect.height), 1)
-            
-            # Draw center point
-            pygame.draw.circle(screen, (255, 0, 0), (int(draw_x), int(draw_y)), 3)
+        

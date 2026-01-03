@@ -22,6 +22,9 @@ class Level:
         # Items
         self.items = []
         
+        #Portal
+        self.portal = None # Will spawn when the level is cleared
+        self.portal_radius = 40
         # Level cleared
         self.cleared = False
         
@@ -74,6 +77,27 @@ class Level:
         if not self.cleared and len(self.enemies) == 0:
             self.cleared = True
             self._spawn_rewards()
+            self.spawn_portal()
+
+    def spawn_portal(self):
+        # Spawn portal to the next level
+        if self.rooms:
+            room = random.choice(self.rooms)
+            portal_x = room.centerx
+            portal_y = room.centery
+        else:
+            portal_x = self.width // 2 + random.randint(-200, 200)
+            portal_y = self.height // 2 + random.randint(-200, 200)
+        
+        self.portal = {'x': portal_x, 'y':portal_y, 'active': True}
+    
+    def check_portal_enter(self, player):
+        #Check if the player entered the portal
+        if self.portal and self.portal["active"]:
+            dist = math.sqrt((player.x - self.portal['x'])**2 + (player.y - self.portal['y'])** 2)
+            return dist < self.portal_radius
+        return False    
+    
     
     def _spawn_rewards(self):
         """Spawn rewards when level is cleared"""
@@ -119,6 +143,37 @@ class Level:
             # Room border
             pygame.draw.rect(screen, (60, 60, 65), 
                            (room_x, room_y, room.width, room.height), 2)
+            
+        # Draw portal if active
+        if self.portal and self.portal['active']:
+            portal_x = self.portal['x'] - camera_offset[0]
+            portal_y = self.portal['y'] - camera_offset[1]
+            
+            # Animated portal effect
+            time = pygame.time.get_ticks()
+            pulse = abs(math.sin(time / 300)) * 0.3 + 0.7
+            
+            # Outer glow
+            glow_radius = int(self.portal_radius * 1.5 * pulse)
+            for i in range(3):
+                alpha_radius = glow_radius - i * 10
+                color_intensity = int(100 * pulse)
+                pygame.draw.circle(screen, (color_intensity, color_intensity, 255), 
+                                 (int(portal_x), int(portal_y)), alpha_radius, 2)
+            
+            # Inner portal
+            pygame.draw.circle(screen, (100, 100, 255), 
+                             (int(portal_x), int(portal_y)), int(self.portal_radius * pulse))
+            pygame.draw.circle(screen, (200, 200, 255), 
+                             (int(portal_x), int(portal_y)), int(self.portal_radius * pulse * 0.7))
+            pygame.draw.circle(screen, WHITE, 
+                             (int(portal_x), int(portal_y)), int(self.portal_radius * pulse * 0.4))
+            
+            # Draw "NEXT LEVEL" text above portal
+            font = pygame.font.Font(None, 28)
+            text = font.render('NEXT LEVEL', True, CYAN)
+            text_rect = text.get_rect(center=(portal_x, portal_y - self.portal_radius - 20))
+            screen.blit(text, text_rect)
         
         # Draw items
         for item in self.items:

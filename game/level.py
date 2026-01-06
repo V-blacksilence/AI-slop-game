@@ -25,6 +25,9 @@ class Level:
         #Portal
         self.portal = None # Will spawn when the level is cleared
         self.portal_radius = 40
+        # Shop portal (only spawns after boss levels)
+        self.shop_portal = None
+        self.shop_portal_radius = 40
         # Level cleared
         self.cleared = False
         
@@ -78,6 +81,8 @@ class Level:
             self.cleared = True
             self._spawn_rewards()
             self.spawn_portal()
+            if self.is_boss_level:
+                self.spawn_shop_portal()
 
     def spawn_portal(self):
         # Spawn portal to the next level
@@ -90,6 +95,18 @@ class Level:
             portal_y = self.height // 2 + random.randint(-200, 200)
         
         self.portal = {'x': portal_x, 'y':portal_y, 'active': True}
+
+    def spawn_shop_portal(self):
+        """Spawn shop portal (only after boss levels)"""
+        if self.rooms:
+            room = random.choice(self.rooms)
+            portal_x = room.centerx + random.randint(100, 150)  # Offset right from regular portal
+            portal_y = room.centery
+        else:
+            portal_x = self.width // 2 + random.randint(200, 300)
+            portal_y = self.height // 2
+        
+        self.shop_portal = {'x': portal_x, 'y': portal_y, 'active': True}
     
     def check_portal_enter(self, player):
         #Check if the player entered the portal
@@ -98,6 +115,11 @@ class Level:
             return dist < self.portal_radius
         return False    
     
+    def deactivate_shop_portal(self):
+        """Deactivate shop portal (when player chooses next level)"""
+        if self.shop_portal:
+            self.shop_portal['active'] = False    
+        
     
     def _spawn_rewards(self):
         """Spawn rewards when level is cleared"""
@@ -174,6 +196,44 @@ class Level:
             text = font.render('NEXT LEVEL', True, CYAN)
             text_rect = text.get_rect(center=(portal_x, portal_y - self.portal_radius - 20))
             screen.blit(text, text_rect)
+
+        # Draw shop portal if active (purple theme)
+        if self.shop_portal and self.shop_portal['active']:
+            shop_x = self.shop_portal['x'] - camera_offset[0]
+            shop_y = self.shop_portal['y'] - camera_offset[1]
+            
+            # Animated portal effect
+            time = pygame.time.get_ticks()
+            pulse = abs(math.sin(time / 250)) * 0.3 + 0.7  # Slightly different speed
+            
+            # Outer glow (purple/dark theme)
+            glow_radius = int(self.shop_portal_radius * 1.5 * pulse)
+            for i in range(3):
+                alpha_radius = glow_radius - i * 10
+                purple_intensity = int(111 * pulse)
+                pygame.draw.circle(screen, (purple_intensity, 50, purple_intensity + 60), 
+                                 (int(shop_x), int(shop_y)), alpha_radius, 2)
+            
+            # Inner portal (purple/violet gradient)
+            pygame.draw.circle(screen, (111, 66, 193),  # PURPLE
+                             (int(shop_x), int(shop_y)), int(self.shop_portal_radius * pulse))
+            pygame.draw.circle(screen, (160, 100, 220), 
+                             (int(shop_x), int(shop_y)), int(self.shop_portal_radius * pulse * 0.7))
+            pygame.draw.circle(screen, (200, 150, 255), 
+                             (int(shop_x), int(shop_y)), int(self.shop_portal_radius * pulse * 0.4))
+            
+            # Draw "SHOP" text above portal
+            font = pygame.font.Font(None, 32)
+            text = font.render('SHOP', True, (200, 150, 255))
+            text_rect = text.get_rect(center=(shop_x, shop_y - self.shop_portal_radius - 20))
+            screen.blit(text, text_rect)
+            
+            # Draw skull icon or special marker
+            font_small = pygame.font.Font(None, 24)
+            skull_text = font_small.render('💀', True, WHITE)
+            skull_rect = skull_text.get_rect(center=(shop_x, shop_y - self.shop_portal_radius - 45))
+            screen.blit(skull_text, skull_rect)
+        
         
         # Draw items
         for item in self.items:

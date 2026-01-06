@@ -113,37 +113,40 @@ WEAPON_UNLOCK_LEVELS = {
     12: 'greatsword'
 }
 
-# Shop items
+# Shop items (Grave Souls - One-time purchases)
 SHOP_ITEMS = {
     'damage_reduction': {
         'name': 'Armor Plate',
-        'description': 'Reduce damage taken by 5%',
-        'cost': 15,
-        'stack': True,
-        'effect': 0.05  # 5% reduction per purchase
+        'description': 'Reduce damage taken by 10%',
+        'cost': 1,  # 1 grave soul
+        'stack': False,  # One-time purchase
+        'effect': 0.10  # 10% reduction
     },
     'range_increase': {
         'name': 'Range Extender',
-        'description': 'Increase attack range by 15',
-        'cost': 20,
-        'stack': True,
-        'effect': 15  # +15 range
+        'description': 'Increase attack range by 25',
+        'cost': 1,  # 1 grave soul
+        'stack': False,  # One-time purchase
+        'effect': 25  # +25 range
     },
     'shield_on_kills': {
         'name': 'Kill Shield',
-        'description': 'Shield activates every 3 kills',
-        'cost': 25,
-        'stack': True,
-        'effect': 30  # Shield HP per stack
+        'description': 'Shield activates every 3 kills (50 HP)',
+        'cost': 1,  # 1 grave soul
+        'stack': False,  # One-time purchase
+        'effect': 50  # Shield HP
     },
     'attack_prediction': {
         'name': 'Danger Sense',
         'description': 'See enemy attack warnings earlier',
-        'cost': 30,
-        'stack': True,
-        'effect': 10  # +10 frames of warning
+        'cost': 1,  # 1 grave soul
+        'stack': False,  # One-time purchase
+        'effect': 15  # +15 frames of warning
     }
 }
+
+# Grave souls - special currency from bosses
+GRAVE_SOULS_PER_BOSS = 1
 
 # Enemy settings
 ENEMY_TYPES = {

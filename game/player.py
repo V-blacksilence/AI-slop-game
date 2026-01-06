@@ -17,6 +17,7 @@ class Player:
         self.stamina = self.max_stamina
         self.damage = PLAYER_DAMAGE
         self.souls = 0
+        self.grave_souls = 0
 
         # Weapon system
         self.weapon_system = WeaponSystem()

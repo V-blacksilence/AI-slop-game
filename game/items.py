@@ -48,6 +48,7 @@ class Item:
 class MetaProgression:
     def __init__(self):
         self.souls = 0  # Currency for meta upgrades
+        self.grave_souls = 0
         self.upgrades = {
             'max_health': 0,
             'max_stamina': 0,
@@ -56,7 +57,12 @@ class MetaProgression:
         }
         self.total_runs = 0
         self.best_level = 0
-        
+        self.shop_purchases = {
+            'damage_reduction': False,
+            'range_increase' : False,
+            'shleid_on_kills': False,
+            'attack_prediction': False
+        }
     def add_souls(self, amount):
         self.souls += amount
     
@@ -115,6 +121,7 @@ class MetaProgression:
                 save_path = os.path.join('saves', 'meta_save.txt')
             with open(save_path, 'w') as f:
                 f.write(f"{self.souls}\n")
+                f.write(f"{self.grave_souls}\n")
                 f.write(f"{self.total_runs}\n")
                 f.write(f"{self.best_level}\n")
                 for upgrade, level in self.upgrades.items():
@@ -128,12 +135,20 @@ class MetaProgression:
             load_path = os.path.join('saves', 'meta_save.txt')
             with open(load_path, 'r') as f:
                 self.souls = int(f.readline().strip())
+                self.grave_souls = int(f.readline().strip())
                 self.total_runs = int(f.readline().strip())
                 self.best_level = int(f.readline().strip())
                 for line in f:
-                    upgrade, level = line.strip().split(':')
-                    if upgrade in self.upgrades:
-                        self.upgrades[upgrade] = int(level)
+                    line = line.strip()
+                    if ':' in line:
+                        key, value = line.split(':')
+                        if key.startswith('shop_'):
+                            # Load shop purchases
+                            item_name = key[5:]  # Remove 'shop_' prefix
+                            if item_name in self.shop_purchases:
+                                self.shop_purchases[item_name] = bool(int(value))
+                        elif key in self.upgrades:
+                            self.upgrades[key] = int(value)
         except FileNotFoundError:
             print("No meta save file found, using default values")
         except Exception as e:

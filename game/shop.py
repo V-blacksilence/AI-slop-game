@@ -2,44 +2,44 @@ import pygame
 from game.constants import *
 
 class Shop:
-    def __init__(self):
+    def __init__(self, meta_progression):
         self.items = list(SHOP_ITEMS.keys())
-        self.purchases = {
-            'damage_reduction': 0,
-            'range_increase': 0,
-            'shield_on_kills': 0,
-            'attack_prediction': 0
-        }
-        self.purchased_this_shop = False
+        self.meta = meta_progression  # Reference to meta progression for persistent purchases
         
-    def can_purchase(self, item_name, player_souls):
-        # Check if player can purchase item
-        if self.purchased_this_shop:
-            return False, f'Already purschased'
+    def can_purchase(self, item_name):
+        """Check if player can purchase item (has grave souls and hasn't purchased before)"""
+        # Check if already purchased (one-time only)
+        if self.meta.shop_purchases.get(item_name, False):
+            return False, 'Already purchased'
         
+        # Check if player has enough grave souls
         item = SHOP_ITEMS[item_name]
-        if player_souls < item['cost']:
-            return False, f'Not enough souls'
+        if self.meta.grave_souls < item['cost']:
+            return False, 'Not enough grave souls'
         
-        return True
+        return True, 'Can purchase'
     
     def purchase(self, item_name, player):
-        # Purchase an item
-        can_buy, message = self.can_purchase(item_name, player.souls)
+        """Purchase an item with grave souls"""
+        can_buy, message = self.can_purchase(item_name)
         if not can_buy:
             return False, message
         
         item = SHOP_ITEMS[item_name]
-        player.souls -= item['cost']
-        self.purchases[item_name] += 1
-        self.purchased_this_shop = True
         
-        # Apply effect immediately\n        self._apply_effect(item_name, player)
+        # Deduct grave souls
+        self.meta.grave_souls -= item['cost']
         
-        return True, f'Bought {item['name']}!'
+        # Mark as purchased
+        self.meta.shop_purchases[item_name] = True
+        
+        # Apply effect immediately
+        self._apply_effect(item_name, player)
+        
+        return True, f'Purchased {item["name"]}!'
     
     def _apply_effect(self, item_name, player):
-        # Apply item effect to player
+        """Apply item effect to player"""
         item = SHOP_ITEMS[item_name]
         
         if item_name == 'damage_reduction':
@@ -51,18 +51,14 @@ class Shop:
         elif item_name == 'attack_prediction':
             player.prediction_bonus += item['effect']
     
-    def reset_shop(self):
-        # Reset for next shop visit
-        self.purchased_this_shop = False
-    
     def get_item_info(self, item_name):
-        # Get item information
+        """Get item information"""
         item = SHOP_ITEMS[item_name]
-        times_bought = self.purchases[item_name]
+        purchased = self.meta.shop_purchases.get(item_name, False)
         
         return {
             'name': item['name'],
             'description': item['description'],
             'cost': item['cost'],
-            'times_bought': times_bought
+            'purchased': purchased
         }
